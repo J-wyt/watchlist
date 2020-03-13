@@ -78,13 +78,21 @@ def forge():
     click.echo('Done.')
 
 
+@app.context_processor
+def inject_user():
+    # app.context_processor 装饰器注册一个模板上下文处理函数
+    # 这个函数返回的变量（以字典键值对的形式）将会统一注入到
+    # 每一个模板的上下文环境中，因此可以直接在模板中使用
+    user = User.query.first()
+    return dict(user=user)
+
+
 @app.route('/')
 @app.route('/index')
 @app.route('/home')
 def index():
-    user = User.query.filter_by(name='Grey Li').first()
     movies = Movie.query.all()
-    return render_template('index.html', user=user, movies=movies)
+    return render_template('index.html', movies=movies)
 
 
 @app.route('/user/<name>')
@@ -107,7 +115,6 @@ def test_url_for():
 
 @app.errorhandler(404)  # 传入要处理的错误代码
 def page_not_found(e):  # 接受异常对象作为参数
-    user = User.query.first()
-    return render_template('404.html', user=user), 404  # 返回模板和状态码
+    return render_template('404.html'), 404  # 返回模板和状态码
 
 
