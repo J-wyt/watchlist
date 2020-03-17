@@ -10,7 +10,7 @@ from flask import escape
 需要使用 Flask 提供的 escape() 函数对 name 变量进行转义处理，
 比如把 < 转换成 &lt;。这样在返回响应时浏览器就不会把它们当做代码执行
 '''
-from flask import url_for
+from flask import request, url_for, redirect, flash
 from flask_sqlalchemy import SQLAlchemy
 
 WIN = sys.platform.startswith('win')
@@ -23,6 +23,7 @@ else:  # 否则使用四个斜线
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = f"{prefix}{os.path.join(app.root_path, 'data.db')}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # 关闭对模型修改的监控
+app.config['SECRET_KEY'] = 'dev'
 # 在扩展类实例化前加载配置
 db = SQLAlchemy(app)  # 初始化扩展，传入程序实例 app
 
@@ -87,12 +88,55 @@ def inject_user():
     return dict(user=user)
 
 
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 @app.route('/index')
 @app.route('/home')
 def index():
+    if request.method == 'POST':  # 判断是否是 POST 请求
+        # 获取表单数据
+        title = request.form.get('title')  # 传入表单对应输入字段的 name 值
+        year = request.form.get('year')
+        # 验证数据
+        if not title or not year or len(year) > 4 or len(title) > 60:
+            flash('Invalid input.')  # 显示错误提示
+            return redirect(url_for('index'))
+        # 保存表单数据
+        movie = Movie(title=title, year=year)
+        db.session.add(movie)
+        db.session.commit()
+        flash('Create success.')
+        return redirect(url_for('index'))
     movies = Movie.query.all()
     return render_template('index.html', movies=movies)
+
+
+@app.route('/movie/edit/<int:movie_id>', methods=['GET', 'POST'])
+def edit(movie_id):
+    movie = Movie.query.get_or_404(movie_id)
+
+    if request.method == 'POST':
+        title = request.form.get('title')
+        year = request.form.get('year')
+        if not title or not year or len(year) > 4 or len(title) > 60:
+            flash('Invalid input.') 
+            return redirect(url_for('index'))
+        # 修改数据
+        movie.title = title
+        movie.year = year
+        db.session.commit()
+        flash('Edit success.')
+        return redirect(url_for('index'))
+    movies = Movie.query.all()
+    return render_template('edit.html', movies=movies)
+
+
+@app.route('/movie/delete/<int:movie_id>', methods=['POST'])
+def delete(movie_id):
+    movie = Movie.query.get_or_404(movie_id)
+    db.session.delete(movie)
+    db.session.commit()
+    flash('Delete success.')
+    return redirect(url_for('index'))
 
 
 @app.route('/user/<name>')
